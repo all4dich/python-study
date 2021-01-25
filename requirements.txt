@@ -1,0 +1,6 @@
+tzlocal~=2.1
+pytz~=2020.4
+pymongo~=3.11.2
+setuptools~=51.0.0
+pandas~=1.2.1
+numpy~=1.19.5
