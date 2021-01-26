@@ -102,7 +102,7 @@ if __name__ == "__main__":
         time_rsync_artifacts_min = timedelta(seconds=time_rsync_artifacts)
         duration = each_build["duration"]
         duration_min = timedelta(seconds=duration)
-        day_full_str = f"2020/{build_month}/{build_day}"
+        day_full_str = f"{build_year}/{build_month}/{build_day}"
         if not re.compile(r".*(soyul|sunjoo|clean).*").match(branch_name):
             i = i + 1
             data_body.append(
@@ -129,16 +129,39 @@ if __name__ == "__main__":
             table_chip_build_count.to_excel(excel_writer=writer, sheet_name="Chip Build Count")
             table_chip_build_count_2.to_excel(excel_writer=writer, sheet_name="Chip Build Count 2")
             table_branch_build_count.to_excel(excel_writer=writer, sheet_name="Branch Build Count")
-            df.to_excel(excel_writer=writer, sheet_name="raw_data")
-    df1 = df.loc[df['type'] == "verify"]
-    df1['day_full_str'] = df1['day_full_str'].apply(lambda x: pd.to_datetime(x))
-    print(df1)
+            #df.to_excel(excel_writer=writer, sheet_name="raw_data")
+
+    temp_writer = pd.ExcelWriter(out_file_name)
+    df_verify = df.loc[df['type'] == "verify"]
+    df_verify['day_full_str_converted'] = df_verify['day_full_str'].apply(
+        lambda x: pd.to_datetime(x, format="%Y/%m/%d"))
+    print(df_verify)
     plt.rcParams["figure.figsize"] = [10, 10]
-    df2 = pd.DataFrame(df1[['time_build_sh_in_seconds', 'day_full_str']])
-    df2.plot.scatter(x='day_full_str', y='time_build_sh_in_seconds')
-    plt.show()
-    df3 = pd.DataFrame(df1[['build_start_date', 'time_build_sh_in_seconds', 'duration_in_queue']]).set_index(
+    df_day_build_time_status_from_verify = pd.DataFrame(
+        df_verify[['time_build_sh_in_seconds', 'day_full_str', 'day_full_str_converted', 'jobname', 'buildnumber',
+                   'build_start_date']])
+    # Draw Scatter plot
+    df_day_build_time_status_from_verify.plot.scatter(x='day_full_str_converted', y='time_build_sh_in_seconds')
+    df_day_build_time_status_from_verify.to_excel(excel_writer=temp_writer, sheet_name="first")
+    df_build_start_date_sorted = pd.DataFrame(
+        df_verify[['build_start_date', 'time_build_sh_in_seconds', 'duration_in_queue', 'day_full_str',
+                   'day_full_str_converted']]).set_index(
         'build_start_date').sort_index(ascending=True)
-    df3.plot()
+    # Draw Scatter plot 2
+    df_build_start_date_sorted.plot.scatter(x='day_full_str_converted', y='time_build_sh_in_seconds')
+    df_build_start_date_sorted.to_excel(excel_writer=temp_writer, sheet_name="second")
+
+    # Drop all builds for production
+    df_dev_branch = df.loc[~df['branch_name'].str.contains(r'^[1-9]+.*', regex=True)]
+    # Create a pivot table
+    table_build_counts_by_type = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['type'], values=['host'],
+                                                aggfunc="count")
+    table_build_counts_by_branch = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['branch_name'], values=['host'],
+                                                  aggfunc="count")
+    table_build_counts_by_type.columns = table_build_counts_by_type.columns.map(lambda s: s[1])
+    table_build_counts_by_branch.columns = table_build_counts_by_branch.columns.map(lambda s: s[1])
+    table_build_counts_by_type.plot()
+    table_build_counts_by_branch.plot()
     plt.show()
     print("Done:")
+    temp_writer.close()
