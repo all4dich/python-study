@@ -154,12 +154,15 @@ if __name__ == "__main__":
     # Drop all builds for production
     df_dev_branch = df.loc[~df['branch_name'].str.contains(r'^[1-9]+.*', regex=True)]
     # Create a pivot table
+    # For each month, Get number of builds for 'type'
     table_build_counts_by_type = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['type'],
                                                 values=['host'],
                                                 aggfunc="count")
+    # For each month, Get number of builds for 'branch'
     table_build_counts_by_branch = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['branch_name'],
                                                   values=['host'],
                                                   aggfunc="count")
+    # For each host, Get number of builds for 'type'
     table_build_counts_by_host = pd.pivot_table(df_dev_branch, index=['host'], values=['buildnumber'], columns=['type'],
                                                 aggfunc="count", fill_value=0, margins=True)
     table_build_counts_by_type.columns = table_build_counts_by_type.columns.map(lambda s: s[1])
@@ -173,4 +176,29 @@ if __name__ == "__main__":
     table_build_counts_by_type.to_excel(excel_writer=pivot_writer, sheet_name="by_type")
     table_build_counts_by_branch.to_excel(excel_writer=pivot_writer, sheet_name="by_branch")
     table_build_counts_by_host.to_excel(excel_writer=pivot_writer, sheet_name="by_host")
+    # Get Excel Workbook from Excel WRiter
+    workbook = pivot_writer.book
+    # Create a char object from workbook
+    chart = workbook.add_chart({'type': 'scatter'})
+    # Get a worksheet that a chart is inserted into
+    sheet_name = 'by_type'
+    worksheet = pivot_writer.sheets[sheet_name]
+    max_row = len(table_build_counts_by_type)
+    fill_color = []
+    fill_color.append("red")
+    fill_color.append("blue")
+    fill_color.append("green")
+    fill_color.append("cyan")
+    fill_color.append("yellow")
+    for i in range(len(table_build_counts_by_type.columns)):
+        col = i + 2
+        chart.add_series({
+            'name': [sheet_name, 0, col],  # Column in DataFrame
+            'categories': [sheet_name, 1, 1, max_row, 1],  # index in DataFrame
+            'values': [sheet_name, 1, col, max_row, col],  # Select a series of values for each column
+            'marker': {'type': 'circle', 'size': 7, 'fill': {'color': fill_color[i]}},
+        })
+    chart.set_x_axis({'name': 'Index'})
+    chart.set_y_axis({'name': 'Value', 'major_gridlines': {'visible': False}})
+    worksheet.insert_chart('K2', chart)
     pivot_writer.close()
