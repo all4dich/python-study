@@ -131,7 +131,7 @@ if __name__ == "__main__":
             table_branch_build_count.to_excel(excel_writer=writer, sheet_name="Branch Build Count")
             # df.to_excel(excel_writer=writer, sheet_name="raw_data")
 
-    temp_writer = pd.ExcelWriter(out_filed_name)
+    pivot_writer = pd.ExcelWriter(out_file_name.replace(".xlsx", "-pivot.xlsx"))
     df_verify = df.loc[df['type'] == "verify"]
     df_verify['day_full_str_converted'] = df_verify['day_full_str'].apply(
         lambda x: pd.to_datetime(x, format="%Y/%m/%d"))
@@ -142,14 +142,14 @@ if __name__ == "__main__":
                    'build_start_date']])
     # Draw Scatter plot
     df_day_build_time_status_from_verify.plot.scatter(x='day_full_str_converted', y='time_build_sh_in_seconds')
-    df_day_build_time_status_from_verify.to_excel(excel_writer=temp_writer, sheet_name="first")
+    df_day_build_time_status_from_verify.to_excel(excel_writer=pivot_writer, sheet_name="first")
     df_build_start_date_sorted = pd.DataFrame(
         df_verify[['build_start_date', 'time_build_sh_in_seconds', 'duration_in_queue', 'day_full_str',
                    'day_full_str_converted']]).set_index(
         'build_start_date').sort_index(ascending=True)
     # Draw Scatter plot 2
     df_build_start_date_sorted.plot.scatter(x='day_full_str_converted', y='time_build_sh_in_seconds')
-    df_build_start_date_sorted.to_excel(excel_writer=temp_writer, sheet_name="second")
+    df_build_start_date_sorted.to_excel(excel_writer=pivot_writer, sheet_name="second")
 
     # Drop all builds for production
     df_dev_branch = df.loc[~df['branch_name'].str.contains(r'^[1-9]+.*', regex=True)]
@@ -167,9 +167,10 @@ if __name__ == "__main__":
     table_build_counts_by_host.columns = table_build_counts_by_host.columns.map(lambda s: s[1])
     table_build_counts_by_type.plot()
     table_build_counts_by_branch.plot()
-    table_build_counts_by_host.plot()
     plt.show()
     print("Done:")
-    print(table_build_counts_by_host.sort_values(by='All', ascending=False))
-    print(table_build_counts_by_host.columns)
-    temp_writer.close()
+    table_build_counts_by_host = table_build_counts_by_host.sort_values(by='All', ascending=False)
+    table_build_counts_by_type.to_excel(excel_writer=pivot_writer, sheet_name="by_type")
+    table_build_counts_by_branch.to_excel(excel_writer=pivot_writer, sheet_name="by_branch")
+    table_build_counts_by_host.to_excel(excel_writer=pivot_writer, sheet_name="by_host")
+    pivot_writer.close()
