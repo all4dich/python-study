@@ -5,6 +5,7 @@ import pytz
 import pymongo
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import os
 import re
 
@@ -60,7 +61,7 @@ if __name__ == "__main__":
                    "chip", "duration", "duration in seconds", "time_rm_build", "time_rm_build in seconds",
                    "time_rsync_artifacts", "time_rsync_artifacts in seconds", "time_build_sh",
                    "time_build_sh_in_seconds",
-                   "duration_in_queue"]
+                   "duration_in_queue", "build_start_date"]
 
     out_file_name = args.out_file
     if out_file_name is None:
@@ -107,7 +108,8 @@ if __name__ == "__main__":
             data_body.append(
                 [host_name, build_year, build_month, build_day, day_full_str, build_hour, job_name, build_number,
                  branch_name, build_type, chip_name, duration_min, duration, time_rm_build_min, time_rm_build,
-                 time_rsync_artifacts_min, time_rsync_artifacts, time_build_sh_min, time_build_sh, duration_in_queue])
+                 time_rsync_artifacts_min, time_rsync_artifacts, time_build_sh_min, time_build_sh, duration_in_queue,
+                 str(build_start_date)])
     df = pd.DataFrame(data_body, columns=data_header)
     print(i)
     table_chip_build_count = pd.pivot_table(
@@ -127,4 +129,16 @@ if __name__ == "__main__":
             table_chip_build_count.to_excel(excel_writer=writer, sheet_name="Chip Build Count")
             table_chip_build_count_2.to_excel(excel_writer=writer, sheet_name="Chip Build Count 2")
             table_branch_build_count.to_excel(excel_writer=writer, sheet_name="Branch Build Count")
+            df.to_excel(excel_writer=writer, sheet_name="raw_data")
+    df1 = df.loc[df['type'] == "verify"]
+    df1['day_full_str'] = df1['day_full_str'].apply(lambda x: pd.to_datetime(x))
+    print(df1)
+    plt.rcParams["figure.figsize"] = [10, 10]
+    df2 = pd.DataFrame(df1[['time_build_sh_in_seconds', 'day_full_str']])
+    df2.plot.scatter(x='day_full_str', y='time_build_sh_in_seconds')
+    plt.show()
+    df3 = pd.DataFrame(df1[['build_start_date', 'time_build_sh_in_seconds', 'duration_in_queue']]).set_index(
+        'build_start_date').sort_index(ascending=True)
+    df3.plot()
+    plt.show()
     print("Done:")
