@@ -103,7 +103,7 @@ if __name__ == "__main__":
         duration = each_build["duration"]
         duration_min = timedelta(seconds=duration)
         day_full_str = f"{build_year}/{build_month}/{build_day}"
-        if not re.compile(r".*(soyul|sunjoo|clean).*").match(branch_name):
+        if not re.compile(r".*(soyul|sunjoo).*").match(branch_name):
             i = i + 1
             data_body.append(
                 [host_name, build_year, build_month, build_day, day_full_str, build_hour, job_name, build_number,
@@ -129,9 +129,9 @@ if __name__ == "__main__":
             table_chip_build_count.to_excel(excel_writer=writer, sheet_name="Chip Build Count")
             table_chip_build_count_2.to_excel(excel_writer=writer, sheet_name="Chip Build Count 2")
             table_branch_build_count.to_excel(excel_writer=writer, sheet_name="Branch Build Count")
-            #df.to_excel(excel_writer=writer, sheet_name="raw_data")
+            # df.to_excel(excel_writer=writer, sheet_name="raw_data")
 
-    temp_writer = pd.ExcelWriter(out_file_name)
+    temp_writer = pd.ExcelWriter(out_filed_name)
     df_verify = df.loc[df['type'] == "verify"]
     df_verify['day_full_str_converted'] = df_verify['day_full_str'].apply(
         lambda x: pd.to_datetime(x, format="%Y/%m/%d"))
@@ -154,14 +154,22 @@ if __name__ == "__main__":
     # Drop all builds for production
     df_dev_branch = df.loc[~df['branch_name'].str.contains(r'^[1-9]+.*', regex=True)]
     # Create a pivot table
-    table_build_counts_by_type = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['type'], values=['host'],
+    table_build_counts_by_type = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['type'],
+                                                values=['host'],
                                                 aggfunc="count")
-    table_build_counts_by_branch = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['branch_name'], values=['host'],
+    table_build_counts_by_branch = pd.pivot_table(df_dev_branch, index=['year', 'month'], columns=['branch_name'],
+                                                  values=['host'],
                                                   aggfunc="count")
+    table_build_counts_by_host = pd.pivot_table(df_dev_branch, index=['host'], values=['buildnumber'], columns=['type'],
+                                                aggfunc="count", fill_value=0, margins=True)
     table_build_counts_by_type.columns = table_build_counts_by_type.columns.map(lambda s: s[1])
     table_build_counts_by_branch.columns = table_build_counts_by_branch.columns.map(lambda s: s[1])
+    table_build_counts_by_host.columns = table_build_counts_by_host.columns.map(lambda s: s[1])
     table_build_counts_by_type.plot()
     table_build_counts_by_branch.plot()
+    table_build_counts_by_host.plot()
     plt.show()
     print("Done:")
+    print(table_build_counts_by_host.sort_values(by='All', ascending=False))
+    print(table_build_counts_by_host.columns)
     temp_writer.close()
