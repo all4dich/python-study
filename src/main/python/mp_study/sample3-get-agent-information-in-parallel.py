@@ -29,12 +29,12 @@ def get_host_info(host_address):
     client.close()
     return {"no_of_cores": nproc_value}
 
-def use_manage(lock, list2, host_address):
+def use_manage(lock, list_output, host_address):
     print("INFO: Handle " + host_address)
     try:
         nproc_value = get_host_info(host_address)['no_of_cores']
         lock.acquire()
-        list2.append({"host_address": host_address, "no_of_cores": nproc_value})
+        list_output.append({"host_address": host_address, "no_of_cores": nproc_value})
     except RuntimeError:
         return 
     except NameError:
