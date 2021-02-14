@@ -56,10 +56,7 @@ if __name__ == "__main__":
     list_input = manage.list()
     list_output = manage.list()
     print("Hello World")
-    pool = Pool(4)
-    a = list(range(5))
-    for i in a:
-        list_input.append(i)
+    pool = Pool()
     lock = manage.Lock()
     pool.map(partial(use_manage, lock, list_output), df['host'])
     pool.close()
