@@ -4,6 +4,7 @@ import argparse
 import re
 import json
 from datetime import datetime, timedelta
+import pandas as pd
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("--username", required=True)
@@ -66,6 +67,9 @@ if __name__ == "__main__":
     total_times = timedelta(seconds=0)
     sprint_time_delta = timedelta(hours=4)
     total_sp_0 = 0
+    output_table = []
+    output_table_header = ['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs']
+    #output_table.append(['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs'])
     if 'issues' in a.keys():
         for each_issue in a['issues']:
             issue_key = each_issue['key']
@@ -90,11 +94,21 @@ if __name__ == "__main__":
             story_point = work_logs_time_spent / sprint_time_delta
             total_sp_0 = total_sp_0 + story_point
             print("")
-            print(active_sprint_name, issue_key, story_point, work_logs['timeSpent'], each_issue['fields']['summary'])
+            print(active_sprint_name, issue_key, story_point, work_logs['timeSpent'], issue_summary)
+            work_logs_messages = ""
             for each_work_log in work_logs['workLogs']:
                 work_log_start = datetime.strptime(each_work_log['started'], "%Y-%m-%dT%X.%f%z")
                 work_logs_time_spent = each_work_log['timeSpent']
                 work_log_comment = each_work_log['comment']
                 print("\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment)
+                work_logs_messages = work_logs_messages+ "\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment
+                work_logs_messages = work_logs_messages.replace("\n", "<br/>")
+                work_logs_messages = work_logs_messages.replace("\r", "")
+            output_table.append([active_sprint_name, issue_key, story_point, work_logs['timeSpent'], issue_summary, work_logs_messages])
+    df = pd.DataFrame(data=output_table, columns=output_table_header)
+    html = df.to_html(escape=False)
     total_sp = total_times / sprint_time_delta
     print(f"Total Story points: {total_sp}, {total_sp_0}")
+    html = html + f"<br/><pre> Total Story points: {total_sp}, {total_sp_0}</pre>"
+    f = open("/tmp/output.html", "w")
+    f.write(html)
