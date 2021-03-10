@@ -1,10 +1,10 @@
-import argparse
 import requests
 import argparse
 import re
 import json
 from datetime import datetime, timedelta
 import pandas as pd
+import os
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("--username", required=True)
@@ -15,6 +15,12 @@ username = args.username
 password = args.password
 
 mlt4tv_sprints = "http://collab.lge.com/main/pages/viewpage.action?pageId=1187089322"
+
+def get_issue_info(url, username, password, issue_key):
+    get_issue_info_url = f"{url}rest/api/2/issue/{issue_key}"
+    r = requests.get(get_issue_info_url, auth=(username, password))
+    issue_info = json.loads(r.text)
+    return issue_info
 
 def get_work_logs_from_previous_week(url, username, password, issue_key):
     output = []
@@ -67,8 +73,10 @@ if __name__ == "__main__":
     total_times = timedelta(seconds=0)
     sprint_time_delta = timedelta(hours=4)
     total_sp_0 = 0
+    total_sp_planned = 0
+    total_spent_time_unplanned = timedelta(seconds=0)
     output_table = []
-    output_table_header = ['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs']
+    output_table_header = ['Sprint', 'Epic', 'Key', 'SP', 'SP Planned', 'Time Spent', 'Summary', 'Worklogs']
     #output_table.append(['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs'])
     if 'issues' in a.keys():
         for each_issue in a['issues']:
@@ -76,9 +84,21 @@ if __name__ == "__main__":
             issue_summary = each_issue['fields']['summary']
             issue_fields = each_issue['fields']
             # Sprint field : code 10005
+            # Story Point field : code 10002 
+            # Epic field : code 10434
+            # Get sprint info
             sprint_fields = issue_fields['customfield_10005']
+            sp_planned = issue_fields['customfield_10002']
+            if not sp_planned:
+                sp_planned = 0
+            total_sp_planned = total_sp_planned + int(sp_planned)
+            # Get Epic Info
+            epic_key = issue_fields['customfield_10434']
+            epic_info = get_issue_info(jira_url, username, password, epic_key)
+            epic_summary = epic_info['fields']['summary']
             all_sprints = []
             active_sprint_name = ""
+            # Detect 'ACTIVE' sprint
             for each_sprint_str in sprint_fields:
                 # each_sprint_str
                 #   - Example: com.atlassian.greenhopper.service.sprint.Sprint@690985ae[id=10076,rapidViewId=3198,state=ACTIVE,name=2021_IR2SP13(3/1-3/12),startDate=2021-03-02T10:00:01.420+09:00,endDate=2021-03-15T10:00:00.000+09:00,completeDate=<null>,sequence=10076,goal=<null>]
@@ -91,6 +111,8 @@ if __name__ == "__main__":
             work_logs = get_work_logs_from_previous_week(jira_url, username, password, issue_key)
             work_logs_time_spent = work_logs['timeSpent']
             total_times = work_logs_time_spent + total_times
+            if sp_planned == 0:
+                total_spent_time_unplanned = total_spent_time_unplanned + work_logs_time_spent
             story_point = work_logs_time_spent / sprint_time_delta
             total_sp_0 = total_sp_0 + story_point
             print("")
@@ -104,11 +126,13 @@ if __name__ == "__main__":
                 work_logs_messages = work_logs_messages+ "\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment
                 work_logs_messages = work_logs_messages.replace("\n", "<br/>")
                 work_logs_messages = work_logs_messages.replace("\r", "")
-            output_table.append([active_sprint_name, issue_key, story_point, work_logs['timeSpent'], issue_summary, work_logs_messages])
+            output_table.append([active_sprint_name, epic_summary, issue_key, story_point, sp_planned, work_logs['timeSpent'], issue_summary, work_logs_messages])
     df = pd.DataFrame(data=output_table, columns=output_table_header)
     html = df.to_html(escape=False)
     total_sp = total_times / sprint_time_delta
-    print(f"Total Story points: {total_sp}, {total_sp_0}")
-    html = html + f"<br/><pre> Total Story points: {total_sp}, {total_sp_0}</pre>"
-    f = open("/tmp/output.html", "w")
+    print(f"Total Story points: {total_sp}, Planned: {total_sp_planned}")
+    html = html + f"<br/><pre> Total Story points: {total_sp}, Planned: {total_sp_planned}</pre>"
+    html = html + f"<pre> Total Story points ( unplanned ): {total_spent_time_unplanned/sprint_time_delta}</pre>"
+    output_path = os.environ['HOME'] + "/output.html"
+    f = open(output_path, "w")
     f.write(html)
