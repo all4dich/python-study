@@ -16,6 +16,18 @@ password = args.password
 
 mlt4tv_sprints = "http://collab.lge.com/main/pages/viewpage.action?pageId=1187089322"
 
+today = datetime.now().astimezone()
+local_tz = today.tzinfo
+# Current Week
+curr_week_start =  today - timedelta(days=today.weekday())
+# curr_week_end: Friday
+curr_week_end =  curr_week_start + timedelta(days=4)
+# Previous Week
+pre_week_start =  today - timedelta(weeks=1, days=today.weekday())
+# curr_week_end: Friday
+pre_week_end =  pre_week_start + timedelta(days=4)
+
+
 def get_issue_info(url, username, password, issue_key):
     get_issue_info_url = f"{url}rest/api/2/issue/{issue_key}"
     r = requests.get(get_issue_info_url, auth=(username, password))
@@ -25,17 +37,6 @@ def get_issue_info(url, username, password, issue_key):
 def get_work_logs_from_previous_week(url, username, password, issue_key):
     output = []
     #             get_issue_worklog_url = f"{self._api_root}issue/{each_issue['key']}/worklog"
-    today = datetime.now().astimezone()
-    local_tz = today.tzinfo
-    # Current Week
-    curr_week_start =  today - timedelta(days=today.weekday())
-    # curr_week_end: Friday
-    curr_week_end =  curr_week_start + timedelta(days=4)
-    # Previous Week
-    pre_week_start =  today - timedelta(weeks=1, days=today.weekday())
-    # curr_week_end: Friday
-    pre_week_end =  pre_week_start + timedelta(days=4)
-
     get_worklog_url = f"{url}rest/api/2/issue/{issue_key}/worklog"
     r = requests.get(get_worklog_url, auth=(username, password))
     r_body = json.loads(r.text)
@@ -70,11 +71,12 @@ if __name__ == "__main__":
     r2 = requests.post(jira_query_url, auth=(username, password),
                        json=jql_query)
     a = json.loads(r2.text)
-    total_times = timedelta(seconds=0)
+    total_work_logs = timedelta(seconds=0)
+    total_work_logs_this_week = timedelta(seconds=0)
     sprint_time_delta = timedelta(hours=4)
     total_sp_0 = 0
     total_sp_planned = 0
-    total_spent_time_unplanned = timedelta(seconds=0)
+    total_work_logs_unplanned = timedelta(seconds=0)
     output_table = []
     output_table_header = ['Sprint', 'Epic', 'Key', 'SP', 'SP Planned', 'Time Spent', 'Summary', 'Worklogs']
     #output_table.append(['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs'])
@@ -110,9 +112,9 @@ if __name__ == "__main__":
                     active_sprint_name = sprint_name
             work_logs = get_work_logs_from_previous_week(jira_url, username, password, issue_key)
             work_logs_time_spent = work_logs['timeSpent']
-            total_times = work_logs_time_spent + total_times
+            total_work_logs = work_logs_time_spent + total_work_logs
             if sp_planned == 0:
-                total_spent_time_unplanned = total_spent_time_unplanned + work_logs_time_spent
+                total_work_logs_unplanned = total_work_logs_unplanned + work_logs_time_spent
             story_point = work_logs_time_spent / sprint_time_delta
             total_sp_0 = total_sp_0 + story_point
             print("")
@@ -121,6 +123,9 @@ if __name__ == "__main__":
             for each_work_log in work_logs['workLogs']:
                 work_log_start = datetime.strptime(each_work_log['started'], "%Y-%m-%dT%X.%f%z")
                 work_logs_time_spent = each_work_log['timeSpent']
+                work_logs_time_spent_in_seconds = each_work_log['timeSpentSeconds']
+                if work_log_start >= curr_week_start:
+                    total_work_logs_this_week = total_work_logs_this_week + timedelta(seconds=work_logs_time_spent_in_seconds)
                 work_log_comment = each_work_log['comment']
                 print("\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment)
                 work_logs_messages = work_logs_messages+ "\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment
@@ -129,10 +134,13 @@ if __name__ == "__main__":
             output_table.append([active_sprint_name, epic_summary, issue_key, story_point, sp_planned, work_logs['timeSpent'], issue_summary, work_logs_messages])
     df = pd.DataFrame(data=output_table, columns=output_table_header)
     html = df.to_html(escape=False)
-    total_sp = total_times / sprint_time_delta
+    total_sp = total_work_logs / sprint_time_delta
+    total_sp_this_week  = total_work_logs_this_week / sprint_time_delta
     print(f"Total Story points: {total_sp}, Planned: {total_sp_planned}")
-    html = html + f"<br/><pre> Total Story points: {total_sp}, Planned: {total_sp_planned}</pre>"
-    html = html + f"<pre> Total Story points ( unplanned ): {total_spent_time_unplanned/sprint_time_delta}</pre>"
+    html = html + f"<br/><pre> Total Story points: {total_sp}</pre>"
+    html = html + f"<pre> Total Story points on this week: {total_sp_this_week}</pre>"
+    html = html + f"<pre> Total Story points (unplanned): {total_work_logs_unplanned/sprint_time_delta}</pre>"
+    html = html + f"<pre> Planned Story Points: {total_sp_planned}</pre>"
     output_path = os.environ['HOME'] + "/output.html"
     f = open(output_path, "w")
     f.write(html)
