@@ -78,7 +78,7 @@ if __name__ == "__main__":
     total_sp_planned = 0
     total_work_logs_unplanned = timedelta(seconds=0)
     output_table = []
-    output_table_header = ['Sprint', 'Epic', 'Key', 'SP', 'SP Planned', 'Time Spent', 'Summary', 'Worklogs']
+    output_table_header = ['Sprint', 'Epic','담당자', '진행 Backlog 회고','Worklogs', '결과 SP / 계획 SP', 'Time Spent', '차기 Backlog', '계획 SP'] 
     #output_table.append(['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs'])
     if 'issues' in a.keys():
         for each_issue in a['issues']:
@@ -131,7 +131,7 @@ if __name__ == "__main__":
                 work_logs_messages = work_logs_messages+ "\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment
                 work_logs_messages = work_logs_messages.replace("\n", "<br/>")
                 work_logs_messages = work_logs_messages.replace("\r", "")
-            output_table.append([active_sprint_name, epic_summary, issue_key, story_point, sp_planned, work_logs['timeSpent'], issue_summary, work_logs_messages])
+            output_table.append([active_sprint_name, epic_summary, username, f"{issue_key} {issue_summary}", work_logs_messages,f"{story_point}/{sp_planned}", work_logs['timeSpent'], '', ''])
     df = pd.DataFrame(data=output_table, columns=output_table_header)
     html = df.to_html(escape=False)
     total_sp = total_work_logs / sprint_time_delta
