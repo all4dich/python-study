@@ -5,13 +5,17 @@ import json
 from datetime import datetime, timedelta
 import pandas as pd
 import os
+from urllib.parse import quote
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("--username", required=True)
 arg_parser.add_argument("--password", required=True)
 arg_parser.add_argument("--jira-url", required=True)
 arg_parser.add_argument("--confluence-url", required=True)
+arg_parser.add_argument("--confluence-space-key", required=True)
+arg_parser.add_argument("--parent-page-id", required=True)
 arg_parser.add_argument("--second-week", action="store_true")
+
 args = arg_parser.parse_args()
 username = args.username
 password = args.password
@@ -178,13 +182,45 @@ if __name__ == "__main__":
     f = open(output_path, "w")
     f.write(html)
 
-    parent_page_id = 1303411841
+    parent_page_id = args.parent_page_id
     confluence_api_url = f"{confluence_url}rest/api/content/"
+    confluence_space_key = args.confluence_space_key
+
+    # Set Personal report page's title
+    personal_page_title = f"Sprint report - {username}"
+
+    # Find a page info with title
+    find_page_url = f"{confluence_api_url}?type=page&spaceKey={confluence_space_key}&title={quote(personal_page_title)}"
+    find_page = requests.get(find_page_url, auth=(username, password))
+    find_page_result = json.loads(find_page.text)
+    if len(find_page_result['results']) == 0:
+        # If personal_page_title doesn't exit, create it
+        personal_sprint_page_data = {
+            "type": "page",
+            "title": f"Sprint report - {username}",
+            "ancestors": [{"id": parent_page_id}],
+            "space": {"key": confluence_space_key},
+            "body": {
+                "storage": {
+                    "value": "Personal Sprint Report Page",
+                    "representation": "storage"
+                }
+            }
+        }
+
+        create_personal_report_page = requests.post(confluence_api_url, auth=(username, password),
+                                                    json=personal_sprint_page_data)
+        personal_page_id = json.loads(create_personal_report_page.text)['id']
+    else:
+        # Get existing page's id
+        personal_page_id = find_page_result['results'][0]['id']
+
+    # Create each sprint's report page
     sprint_page_data = {
         "type": "page",
         "title": f"Sprint report {str(today)}",
-        "ancestors": [{"id": parent_page_id}],
-        "space": {"key": "~allessunjoo.park"},
+        "ancestors": [{"id": personal_page_id}],
+        "space": {"key": confluence_space_key},
         "body": {
             "storage": {
                 "value": html,
@@ -194,5 +230,9 @@ if __name__ == "__main__":
     }
     create_sp_report = requests.post(confluence_api_url, auth=(username, password), json=sprint_page_data)
     print(create_sp_report.status_code)
+    create_sp_report_obj = json.loads(create_sp_report.text)
+    # print a created page url
+    page_url = f"{create_sp_report_obj['_links']['base'] + create_sp_report_obj['_links']['webui']}"
+    print(page_url)
     end_time = datetime.now()
     print(end_time - start_time)
