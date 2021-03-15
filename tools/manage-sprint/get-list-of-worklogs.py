@@ -9,23 +9,27 @@ import os
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("--username", required=True)
 arg_parser.add_argument("--password", required=True)
+arg_parser.add_argument("--jira-url", required=True)
+arg_parser.add_argument("--confluence-url", required=True)
 arg_parser.add_argument("--second-week", action="store_true")
 args = arg_parser.parse_args()
 username = args.username
 password = args.password
 
-mlt4tv_sprints = "http://collab.lge.com/main/pages/viewpage.action?pageId=1187089322"
+jira_url = args.jira_url
+confluence_url = args.confluence_url
+mlt4tv_sprints = f"{confluence_url}pages/viewpage.action?pageId=1187089322"
 
 today = datetime.now().astimezone()
 local_tz = today.tzinfo
 # Current Week
-curr_week_start =  today - timedelta(days=today.weekday())
+curr_week_start = today - timedelta(days=today.weekday())
 # curr_week_end: Friday
-curr_week_end =  curr_week_start + timedelta(days=4)
+curr_week_end = curr_week_start + timedelta(days=4)
 # Previous Week
-pre_week_start =  today - timedelta(weeks=1, days=today.weekday())
+pre_week_start = today - timedelta(weeks=1, days=today.weekday())
 # curr_week_end: Friday
-pre_week_end =  pre_week_start + timedelta(days=4)
+pre_week_end = pre_week_start + timedelta(days=4)
 
 
 def get_issue_info(url, username, password, issue_key):
@@ -33,6 +37,24 @@ def get_issue_info(url, username, password, issue_key):
     r = requests.get(get_issue_info_url, auth=(username, password))
     issue_info = json.loads(r.text)
     return issue_info
+
+
+def get_confluence_user_info(url, username, password):
+    # https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-users/#api-rest-api-3-user-get
+    # https://developer.atlassian.com/cloud/confluence/rest/api-group-users/#api-api-user-current-get
+    get_user_info_url = f"{url}rest/api/user/current"
+    r = requests.get(get_user_info_url, auth=(username, password))
+    return json.loads(r.text)
+
+
+def get_hlm_jira_link(issue_key):
+    template_str = "<ac:structured-macro ac:name=\"jira\" ac:schema-version=\"1\" ac:macro-id=\"96271a36-c3f9-4963-b74a-d683f9a1fc65\">" \
+                   "<ac:parameter ac:name=\"server\">HLM Tracker</ac:parameter>" \
+                   "<ac:parameter ac:name=\"serverId\">b2a4479c-d518-39ac-bbdc-b8434e95443c</ac:parameter>" \
+                   f"<ac:parameter ac:name=\"key\">{issue_key}</ac:parameter>" \
+                   "</ac:structured-macro>"
+    return template_str
+
 
 def get_work_logs_from_previous_week(url, username, password, issue_key):
     output = []
@@ -48,14 +70,16 @@ def get_work_logs_from_previous_week(url, username, password, issue_key):
         if worklog_start_obj > pre_week_start:
             time_spent_seconds = time_spent_seconds + each_work_log['timeSpentSeconds']
             output.append(each_work_log)
-    total_time_spent = timedelta(seconds=time_spent_seconds) 
+    total_time_spent = timedelta(seconds=time_spent_seconds)
     return {"workLogs": output, "timeSpent": total_time_spent}
 
+
 if __name__ == "__main__":
+    start_time = datetime.now()
     sample_url = "https://<domain>/rest/api/content/12345?expand=body.storage"
     page_id = "1187089322"
-    page_url = f"http://collab.lge.com/main/pages/viewpage.action?pageId={page_id}"
-    get_page_body = f"http://collab.lge.com/main/rest/api/content/{page_id}?expand=body.storage"
+    page_url = f"{confluence_url}pages/viewpage.action?pageId={page_id}"
+    get_page_body = f"{confluence_url}rest/api/content/{page_id}?expand=body.storage"
     r = requests.get(get_page_body, auth=(username, password))
     target_text = r.text.replace("</strong>", "").replace("<span>", "").replace("</span>", "")
     output = re.compile(r"2021_IR\S+\)").findall(target_text)
@@ -64,7 +88,6 @@ if __name__ == "__main__":
     start_week = ""
     if args.second_week:
         start_week = "-1w"
-    jira_url = "http://hlm.lge.com/issue/"
     jira_query_url = f"{jira_url}rest/api/2/search"
     jql_query = {
         "jql": f"worklogDate > startOfWeek({start_week}) AND worklogAuthor = allessunjoo.park"}
@@ -78,11 +101,13 @@ if __name__ == "__main__":
     total_sp_planned = 0
     total_work_logs_unplanned = timedelta(seconds=0)
     output_table = []
-    output_table_header = ['Sprint', 'Epic','담당자', '진행 Backlog 회고','Worklogs', '결과 SP / 계획 SP', 'Time Spent', '차기 Backlog', '계획 SP'] 
-    #output_table.append(['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs'])
+    output_table_header = ['Sprint', 'Epic', '담당자', '진행 Backlog 회고', 'Worklogs', '결과 SP / 계획 SP', 'Time Spent',
+                           '차기 Backlog', '계획 SP']
+    # output_table.append(['Sprint', 'Key', 'SP', 'Time Spent', 'Summary', 'Worklogs'])
     if 'issues' in a.keys():
         for each_issue in a['issues']:
             issue_key = each_issue['key']
+            issue_link = get_hlm_jira_link(issue_key)
             issue_summary = each_issue['fields']['summary']
             issue_fields = each_issue['fields']
             # Sprint field : code 10005
@@ -98,6 +123,7 @@ if __name__ == "__main__":
             epic_key = issue_fields['customfield_10434']
             epic_info = get_issue_info(jira_url, username, password, epic_key)
             epic_summary = epic_info['fields']['summary']
+            epic_link = get_hlm_jira_link(epic_key)
             all_sprints = []
             active_sprint_name = ""
             # Detect 'ACTIVE' sprint
@@ -125,22 +151,48 @@ if __name__ == "__main__":
                 work_logs_time_spent = each_work_log['timeSpent']
                 work_logs_time_spent_in_seconds = each_work_log['timeSpentSeconds']
                 if work_log_start >= curr_week_start:
-                    total_work_logs_this_week = total_work_logs_this_week + timedelta(seconds=work_logs_time_spent_in_seconds)
+                    total_work_logs_this_week = total_work_logs_this_week + timedelta(
+                        seconds=work_logs_time_spent_in_seconds)
                 work_log_comment = each_work_log['comment']
                 print("\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment)
-                work_logs_messages = work_logs_messages+ "\n" + str(work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment
+                work_logs_messages = work_logs_messages + "\n" + str(
+                    work_log_start) + f", {work_logs_time_spent}" + "\n" + work_log_comment
                 work_logs_messages = work_logs_messages.replace("\n", "<br/>")
                 work_logs_messages = work_logs_messages.replace("\r", "")
-            output_table.append([active_sprint_name, epic_summary, username, f"{issue_key} {issue_summary}", work_logs_messages,f"{story_point}/{sp_planned}", work_logs['timeSpent'], '', ''])
+            account_id = get_confluence_user_info(confluence_url, username, password)['userKey']
+            user_link = f"<ac:link><ri:user ri:userkey=\"{account_id}\"/></ac:link>"
+            output_table.append(
+                [active_sprint_name, epic_link, user_link, issue_link, work_logs_messages,
+                 f"{story_point}/{sp_planned}", work_logs['timeSpent'], '', ''])
     df = pd.DataFrame(data=output_table, columns=output_table_header)
     html = df.to_html(escape=False)
     total_sp = total_work_logs / sprint_time_delta
-    total_sp_this_week  = total_work_logs_this_week / sprint_time_delta
+    total_sp_this_week = total_work_logs_this_week / sprint_time_delta
     print(f"Total Story points: {total_sp}, Planned: {total_sp_planned}")
-    html = html + f"<br/><pre> Total Story points: {total_sp}</pre>"
-    html = html + f"<pre> Total Story points on this week: {total_sp_this_week}</pre>"
-    html = html + f"<pre> Total Story points (unplanned): {total_work_logs_unplanned/sprint_time_delta}</pre>"
-    html = html + f"<pre> Planned Story Points: {total_sp_planned}</pre>"
+    html_prefix = f"<br/><pre> Total Story points: {total_sp}</pre>"
+    html_prefix = html_prefix + f"<pre> Total Story points on this week: {total_sp_this_week}</pre>"
+    html_prefix = html_prefix + f"<pre> Total Story points (unplanned): {total_work_logs_unplanned / sprint_time_delta}</pre>"
+    html_prefix = html_prefix + f"<pre> Planned Story Points: {total_sp_planned}</pre><br/>"
+    html = html_prefix + html
     output_path = os.environ['HOME'] + "/output.html"
     f = open(output_path, "w")
     f.write(html)
+
+    parent_page_id = 1303411841
+    confluence_api_url = f"{confluence_url}rest/api/content/"
+    sprint_page_data = {
+        "type": "page",
+        "title": f"Sprint report {str(today)}",
+        "ancestors": [{"id": parent_page_id}],
+        "space": {"key": "~allessunjoo.park"},
+        "body": {
+            "storage": {
+                "value": html,
+                "representation": "storage"
+            }
+        }
+    }
+    create_sp_report = requests.post(confluence_api_url, auth=(username, password), json=sprint_page_data)
+    print(create_sp_report.status_code)
+    end_time = datetime.now()
+    print(end_time - start_time)
