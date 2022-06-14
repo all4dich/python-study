@@ -12,16 +12,15 @@ logging.basicConfig(format=FORMAT, level=numeric_level)
 message_server_user = "nota_modelsearch"
 message_server_pass = "dev180928"
 
-host_addr = "52.78.168.231"
+host_addr = "message.netspresso.ai"
 credentials = pika.PlainCredentials(message_server_user, message_server_pass)
 connection = pika.BlockingConnection(
     pika.ConnectionParameters(host=host_addr, credentials=credentials)
 )
 channel = connection.channel()
 
-exchange_name = "test_logs"
+exchange_name = "netspresso_modelsearch/email_notification"
 channel.exchange_declare(exchange=exchange_name, exchange_type='fanout')
-
 result = channel.queue_declare(queue='', exclusive=True)
 queue_name = result.method.queue
 logging.info(f"Target Exchange Name: {exchange_name}")
@@ -32,9 +31,7 @@ channel.queue_bind(exchange=exchange_name, queue=queue_name)
 print(' [*] Waiting for logs. To exit press CTRL+C')
 
 def callback(ch, method, properties, body):
-    sleep_time = 10
-    print(f" Sleep in  {sleep_time} seconds")
-    time.sleep(sleep_time)
+#    sleep_time = 10
     print(" [x] %r" % body)
 
 channel.basic_consume(
