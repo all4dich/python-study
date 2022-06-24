@@ -12,9 +12,7 @@ message_password = "dev180928"
 
 login_server = LoginServerConnector("https://login.netspresso.ai:8888/", "sunjoo.park@nota.ai", "wyhmdywb" )
 user_access_token = login_server.login()
-print(user_access_token)
-
-agent_id = "b042023c-1f42-5867-addc-cab039d96242"
+agent_id = "4a978969-b8ae-52f3-8767-de341ec095f2"
 assign_agent_data = {
   "user_id": "d312baaa-9f4a-4b8f-b67c-a3e3493fde6f",
   "agent_id": agent_id,
