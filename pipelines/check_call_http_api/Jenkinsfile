@@ -1,0 +1,82 @@
+//@NonCPS
+def handle_request() {
+    def url = "https://login.netspresso.ai:8888/api/v1/login"
+    def request = new URL(url).openConnection()
+    def message = '{"username" : "jwbaek",    "password" : "54321"}'
+    request.setRequestMethod('POST')
+    request.setDoOutput(true)
+    request.setRequestProperty("Content-Type", "application/json")
+    request.getOutputStream().write(message.getBytes("UTF-8"));
+    def postRC = request.getResponseCode();
+    println(postRC);
+    if(postRC.equals(200)) {
+        println(request.getInputStream().getText());
+    }
+    if(postRC.equals(201)) {
+        def output = request.getInputStream().getText()
+        request = null
+        def a = readJSON text:output
+        //echo a['tokens']['access_token']
+        return a['tokens']['access_token']
+    }
+}
+
+def handle_agent_login (agent_id, agent_key) {
+    def url = "https://login.netspresso.ai:8888/api/v1/agent_key_login"
+    def request = new URL(url).openConnection()
+    def message = '{"agent_id" : "' + agent_id +'","agent_key" : "' + agent_key+'"}'
+    request.setRequestMethod('POST')
+    request.setDoOutput(true)
+    request.setRequestProperty("Content-Type", "application/json")
+    request.getOutputStream().write(message.getBytes("UTF-8"));
+    def postRC = request.getResponseCode();
+    println(postRC);
+    if(postRC.equals(201)||postRC.equals(200)) {
+        def output = request.getInputStream().getText()
+        request = null
+        println(output)
+        def a = readJSON text:output
+        def agent_access_token = a['tokens']['access_token']
+        println(agent_access_token)
+        return agent_access_token
+    }
+}
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'DIR_PATH', defaultValue: '/Users', description: "PATH")
+    }
+    stages {
+        stage('Test') {
+            steps {
+                script {
+                    //def b = handle_request()
+                    //println(b)
+                    def agent_id = "4a978969-b8ae-52f3-8767-de341ec095f2"
+                    def agent_key = "ed5dfaa8-77bf-4e76-b8e3-f033cba86d14"
+                    def agent_token = handle_agent_login(agent_id, agent_key)
+                    echo "${agent_id}, ${agent_key}, ${agent_token}"
+                }
+            }
+        }
+        stage('Second') {
+            steps {
+                echo "second"
+            }
+        }
+    }
+    post {
+        failure {
+            script {
+                echo "failure"
+            }
+        }
+        success {
+            script {
+                echo "success"
+            }
+        }
+    }
+}
