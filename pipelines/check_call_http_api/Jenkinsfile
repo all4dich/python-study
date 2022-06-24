@@ -21,7 +21,7 @@ def handle_request() {
     }
 }
 
-def handle_agent_login (agent_id, agent_key) {
+def get_agent_token (agent_id, agent_key) {
     def url = "https://login.netspresso.ai:8888/api/v1/agent_key_login"
     def request = new URL(url).openConnection()
     def message = '{"agent_id" : "' + agent_id +'","agent_key" : "' + agent_key+'"}'
@@ -44,10 +44,11 @@ def handle_agent_login (agent_id, agent_key) {
 
 pipeline {
     agent any
-
+/*
     parameters {
         string(name: 'DIR_PATH', defaultValue: '/Users', description: "PATH")
     }
+    */
     stages {
         stage('Test') {
             steps {
@@ -56,7 +57,7 @@ pipeline {
                     //println(b)
                     def agent_id = "4a978969-b8ae-52f3-8767-de341ec095f2"
                     def agent_key = "ed5dfaa8-77bf-4e76-b8e3-f033cba86d14"
-                    def agent_token = handle_agent_login(agent_id, agent_key)
+                    def agent_token = get_agent_token(agent_id, agent_key)
                     echo "${agent_id}, ${agent_key}, ${agent_token}"
                 }
             }
